@@ -8,20 +8,16 @@ st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="center
 st.title("🎬 AI Voiceover & Caption (Gratis 100%)")
 st.write("Ubah teks menjadi suara Google dan tambahkan caption otomatis tanpa perlu API Key!")
 
----
-
 # 1. Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
 text_input = st.text_area("Masukkan teks narasi (akan dijadikan suara & caption):", placeholder="Halo, selamat datang di video ini...")
 
-# 2. Pilihan Bahasa (Karena gratis, kita pilih berdasarkan bahasa/logat)
+# 2. Pilihan Bahasa
 language = st.selectbox(
     "Pilih Bahasa Suara AI:", 
     [("Indonesia", "id"), ("Inggris", "en"), ("Jepang", "ja"), ("Korea", "ko")], 
     format_func=lambda x: x[0]
 )
-
----
 
 # Tombol Eksekusi
 if st.button("⚡ Proses Video & Caption Sekarang"):
