@@ -15,8 +15,8 @@ from gtts import gTTS
 
 # Konfigurasi halaman utama
 st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="centered")
-st.title("🎬 AI Voiceover & Word-by-Word Caption")
-st.write("Ubah teks menjadi suara Google dengan caption otomatis yang muncul per kata!")
+st.title("🎬 AI Voiceover & Transparent Caption")
+st.write("Ubah teks menjadi suara Google dengan caption per kata tanpa border dan kustomisasi warna!")
 
 # Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
@@ -37,14 +37,16 @@ caption_position = st.radio(
     horizontal=True
 )
 
-# Fungsi Khusus Pengganti ImageMagick (Render Teks dengan Pillow)
-def create_caption_clip(text, duration, video_width):
-    # Agar pas untuk satu kata, ukuran kotak disesuaikan secara proporsional
+# --- FITUR BARU: OPSI PILIHAN WARNA (RGB/HEX) ---
+text_color = st.color_picker("🎨 Pilih Warna Teks Caption:", "#FFD700") # Default warna emas/kuning estetik
+
+# Fungsi Khusus Pengganti ImageMagick (Render Teks Transparan dengan Pillow)
+def create_caption_clip(text, duration, video_width, color_hex):
     box_width = int(video_width * 0.8)
-    box_height = 90 # Sedikit lebih ramping karena hanya menampilkan satu kata
+    box_height = 100 
     
-    # Buat kanvas hitam solid
-    img = Image.new('RGB', (box_width, box_height), color=(0, 0, 0))
+    # KUNCI UTAMA: Menggunakan mode 'RGBA' dengan warna (0,0,0,0) agar background 100% transparan
+    img = Image.new('RGBA', (box_width, box_height), color=(0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
     # Otomatis download font Roboto jika belum ada di server
@@ -53,11 +55,11 @@ def create_caption_clip(text, duration, video_width):
         urllib.request.urlretrieve("https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Bold.ttf", font_path)
     
     try:
-        font = ImageFont.truetype(font_path, 42) # Ukuran font sedikit diperbesar agar jelas
+        font = ImageFont.truetype(font_path, 45) # Ukuran sedikit diperbesar agar lebih jelas tanpa kotak
     except:
         font = ImageFont.load_default()
         
-    # Kalkulasi ukuran teks agar posisinya tepat di tengah kotak hitam
+    # Kalkulasi ukuran teks agar posisinya tepat di tengah
     if hasattr(draw, 'textbbox'):
         bbox = draw.textbbox((0, 0), text, font=font)
         text_w = bbox[2] - bbox[0]
@@ -68,10 +70,17 @@ def create_caption_clip(text, duration, video_width):
     x = (box_width - text_w) / 2
     y = (box_height - text_h) / 2
     
-    # Gambar teks warna putih di atas kanvas hitam
-    draw.text((x, y), text, font=font, fill='white')
+    # Menggambar teks dengan warna pilihan user + efek stroke/garis tepi hitam agar kontras di video apapun
+    draw.text(
+        (x, y), 
+        text, 
+        font=font, 
+        fill=color_hex, 
+        stroke_width=3, 
+        stroke_fill="#000000"
+    )
     
-    # Ubah gambar menjadi format array Numpy agar bisa dibaca MoviePy
+    # Mengubah gambar RGBA menjadi array Numpy (MoviePy otomatis mendeteksi Alpha channel sebagai transparansi)
     return ImageClip(np.array(img)).set_duration(duration)
 
 # Tombol Eksekusi
@@ -79,7 +88,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
     if uploaded_video is None or text_input.strip() == "":
         st.warning("⚠️ Mohon unggah file video dan isi teks narasinya terlebih dahulu!")
     else:
-        with st.spinner("Sedang memproses suara AI dan menyinkronkan caption per kata..."):
+        with st.spinner("Sedang memproses suara AI dan menyinkronkan caption transparan..."):
             try:
                 # Simpan video mentah
                 temp_video_path = "temp_input_video.mp4"
@@ -101,26 +110,24 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 h_safe = h if h % 2 == 0 else h - 1
                 video_clip = video_clip.resize((w_safe, h_safe))
                 
-                # --- LOGIKA BARU: PROSES CAPTION PER KATA ---
+                # PROSES CAPTION PER KATA
                 words = text_input.split()
                 time_per_word = audio_clip.duration / max(len(words), 1)
                 
                 subtitle_clips = []
                 
-                # Looping langsung per kata (tanpa digabung menjadi kalimat panjang)
                 for word in words:
-                    # Bersihkan spasi kosong jika ada
                     word = word.strip()
                     if word:
-                        txt_clip = create_caption_clip(word, time_per_word, w_safe)
+                        # Masukkan parameter warna (text_color) yang dipilih dari UI
+                        txt_clip = create_caption_clip(word, time_per_word, w_safe, text_color)
                         subtitle_clips.append(txt_clip)
-                # --------------------------------------------
                 
                 # Gabungkan seluruh potongan kata secara berurutan
                 pilihan_posisi = caption_position[1]
                 final_subtitle_clip = concatenate_videoclips(subtitle_clips).set_position(('center', pilihan_posisi))
                 
-                # Tumpuk video asli dengan teks subtitle per kata
+                # Tumpuk video asli dengan teks subtitle transparan
                 composite_video = CompositeVideoClip([video_clip, final_subtitle_clip])
                 
                 # Pasang audio ke video gabungan
@@ -143,7 +150,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 composite_video.close()
                 
                 # Tampilkan Hasil
-                st.success("🎉 Video dengan gaya caption per kata berhasil dibuat!")
+                st.success("🎉 Video dengan caption transparan per kata berhasil dibuat!")
                 st.video(output_video_path)
                 
                 # Download File
@@ -151,7 +158,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     st.download_button(
                         label="📥 Download Video Hasil",
                         data=file,
-                        file_name="video_per_kata.mp4",
+                        file_name="video_transparan.mp4",
                         mime="video/mp4"
                     )
                 
