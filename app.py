@@ -9,7 +9,7 @@ import numpy as np
 # Konfigurasi halaman utama
 st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="centered")
 st.title("🎬 AI Voiceover & Caption (Bypass Server Mode)")
-st.write("Ubah teks menjadi suara Google dan tambahkan caption otomatis tanpa error server!")
+st.write("Ubah teks menjadi suara Google dan tambahkan caption otomatis tanpa error resolusi & server!")
 
 # 1. Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
@@ -79,6 +79,13 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 video_clip = VideoFileClip(temp_video_path)
                 audio_clip = AudioFileClip(temp_audio_path)
                 
+                # --- PENGAMAN RESOLUSI (Rasio Tetap, Bebas Error Codec) ---
+                w, h = video_clip.size
+                w_safe = w if w % 2 == 0 else w - 1
+                h_safe = h if h % 2 == 0 else h - 1
+                video_clip = video_clip.resize((w_safe, h_safe))
+                # --------------------------------------------------------
+                
                 # Memecah teks
                 words = text_input.split()
                 time_per_word = audio_clip.duration / max(len(words), 1)
@@ -90,8 +97,8 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     chunk_text = " ".join(words[i:i+chunk_size])
                     chunk_duration = time_per_word * len(words[i:i+chunk_size])
                     
-                    # Gunakan fungsi render teks custom buatan kita
-                    txt_clip = create_caption_clip(chunk_text, chunk_duration, video_clip.w)
+                    # Gunakan fungsi render teks custom buatan kita (mengikuti lebar aman)
+                    txt_clip = create_caption_clip(chunk_text, chunk_duration, w_safe)
                     txt_clip = txt_clip.set_position(('center', 'bottom'))
                     subtitle_clips.append(txt_clip)
                 
@@ -121,7 +128,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 composite_video.close()
                 
                 # Tampilkan Hasil
-                st.success("🎉 Video dengan Suara dan Caption berhasil dibuat tanpa error ImageMagick!")
+                st.success("🎉 Video dengan Suara dan Caption berhasil dibuat dengan rasio yang sempurna!")
                 st.video(output_video_path)
                 
                 # Download File
