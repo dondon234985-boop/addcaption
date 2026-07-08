@@ -15,18 +15,26 @@ from gtts import gTTS
 
 # Konfigurasi halaman utama
 st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="centered")
-st.title("🎬 AI Voiceover & Caption (Anti Error)")
-st.write("Ubah teks menjadi suara Google, tambah caption otomatis, rasio aman, dan bebas error server!")
+st.title("🎬 AI Voiceover & Caption (Multi-Position Mode)")
+st.write("Ubah teks menjadi suara Google dan letakkan posisi caption sesuai seleramu!")
 
 # Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
 text_input = st.text_area("Masukkan teks narasi (akan dijadikan suara & caption):", placeholder="Halo, selamat datang di video ini...")
 
-# Pilihan Bahasa
+# Pilihan Bahasa Suara
 language = st.selectbox(
     "Pilih Bahasa Suara AI:", 
     [("Indonesia", "id"), ("Inggris", "en"), ("Jepang", "ja"), ("Korea", "ko")], 
     format_func=lambda x: x[0]
+)
+
+# --- FITUR BARU: PILIHAN POSISI CAPTION ---
+caption_position = st.radio(
+    "Pilih Posisi Letak Caption:",
+    [("Bawah", "bottom"), ("Tengah", "center"), ("Atas", "top")],
+    format_func=lambda x: x[0],
+    horizontal=True # Membuat pilihan berjejer ke samping agar rapi
 )
 
 # Fungsi Khusus Pengganti ImageMagick (Render Teks dengan Pillow)
@@ -86,14 +94,11 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 video_clip = VideoFileClip(temp_video_path)
                 audio_clip = AudioFileClip(temp_audio_path)
                 
-                # --- PENGAMAN RESOLUSI (Rasio Tetap, Bebas Error Codec) ---
+                # PENGAMAN RESOLUSI
                 w, h = video_clip.size
                 w_safe = w if w % 2 == 0 else w - 1
                 h_safe = h if h % 2 == 0 else h - 1
-                
-                # MoviePy memanggil fungsi resize (yang menggunakan patch Antialias kita)
                 video_clip = video_clip.resize((w_safe, h_safe))
-                # --------------------------------------------------------
                 
                 # Memecah teks
                 words = text_input.split()
@@ -108,11 +113,12 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     
                     # Gunakan fungsi render teks custom buatan kita
                     txt_clip = create_caption_clip(chunk_text, chunk_duration, w_safe)
-                    txt_clip = txt_clip.set_position(('center', 'bottom'))
                     subtitle_clips.append(txt_clip)
                 
                 # Gabungkan caption berurutan
-                final_subtitle_clip = concatenate_videoclips(subtitle_clips).set_position(('center', 'bottom'))
+                # --- PERUBAHAN DI SINI: Mengikuti posisi pilihan user secari dinamis ---
+                pilihan_posisi = caption_position[1] # berisi 'bottom', 'center', atau 'top'
+                final_subtitle_clip = concatenate_videoclips(subtitle_clips).set_position(('center', pilihan_posisi))
                 
                 # Tumpuk video asli dengan teks subtitle
                 composite_video = CompositeVideoClip([video_clip, final_subtitle_clip])
@@ -137,7 +143,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 composite_video.close()
                 
                 # Tampilkan Hasil
-                st.success("🎉 Video berhasil diproses sepenuhnya!")
+                st.success(f"🎉 Video berhasil diproses dengan posisi caption di bagian {caption_position[0]}!")
                 st.video(output_video_path)
                 
                 # Download File
