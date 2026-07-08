@@ -1,28 +1,35 @@
 import streamlit as st
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, concatenate_videoclips
-from gtts import gTTS
 import os
 import urllib.request
-from PIL import Image, ImageDraw, ImageFont
 import numpy as np
+
+# --- 1. MONKEY PATCH PILLOW (Wajib diletakkan sebelum import MoviePy) ---
+from PIL import Image, ImageDraw, ImageFont
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+# -----------------------------------------------------------------------
+
+# 2. Import library lainnya setelah patch aman
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, concatenate_videoclips
+from gtts import gTTS
 
 # Konfigurasi halaman utama
 st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="centered")
-st.title("🎬 AI Voiceover & Caption (Bypass Server Mode)")
-st.write("Ubah teks menjadi suara Google dan tambahkan caption otomatis tanpa error resolusi & server!")
+st.title("🎬 AI Voiceover & Caption (Anti Error)")
+st.write("Ubah teks menjadi suara Google, tambah caption otomatis, rasio aman, dan bebas error server!")
 
-# 1. Komponen Upload Video & Teks
+# Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
 text_input = st.text_area("Masukkan teks narasi (akan dijadikan suara & caption):", placeholder="Halo, selamat datang di video ini...")
 
-# 2. Pilihan Bahasa
+# Pilihan Bahasa
 language = st.selectbox(
     "Pilih Bahasa Suara AI:", 
     [("Indonesia", "id"), ("Inggris", "en"), ("Jepang", "ja"), ("Korea", "ko")], 
     format_func=lambda x: x[0]
 )
 
-# 3. Fungsi Khusus Pengganti ImageMagick (Render Teks dengan Pillow)
+# Fungsi Khusus Pengganti ImageMagick (Render Teks dengan Pillow)
 def create_caption_clip(text, duration, video_width):
     box_width = int(video_width * 0.9)
     box_height = 100 # Tinggi kotak subtitle
@@ -83,6 +90,8 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 w, h = video_clip.size
                 w_safe = w if w % 2 == 0 else w - 1
                 h_safe = h if h % 2 == 0 else h - 1
+                
+                # MoviePy memanggil fungsi resize (yang menggunakan patch Antialias kita)
                 video_clip = video_clip.resize((w_safe, h_safe))
                 # --------------------------------------------------------
                 
@@ -97,7 +106,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     chunk_text = " ".join(words[i:i+chunk_size])
                     chunk_duration = time_per_word * len(words[i:i+chunk_size])
                     
-                    # Gunakan fungsi render teks custom buatan kita (mengikuti lebar aman)
+                    # Gunakan fungsi render teks custom buatan kita
                     txt_clip = create_caption_clip(chunk_text, chunk_duration, w_safe)
                     txt_clip = txt_clip.set_position(('center', 'bottom'))
                     subtitle_clips.append(txt_clip)
@@ -128,7 +137,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 composite_video.close()
                 
                 # Tampilkan Hasil
-                st.success("🎉 Video dengan Suara dan Caption berhasil dibuat dengan rasio yang sempurna!")
+                st.success("🎉 Video berhasil diproses sepenuhnya!")
                 st.video(output_video_path)
                 
                 # Download File
@@ -136,7 +145,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     st.download_button(
                         label="📥 Download Video Hasil",
                         data=file,
-                        file_name="video_caption_sukses.mp4",
+                        file_name="video_final.mp4",
                         mime="video/mp4"
                     )
                 
