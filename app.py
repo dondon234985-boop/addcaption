@@ -15,12 +15,12 @@ from gtts import gTTS
 
 # Konfigurasi halaman utama
 st.set_page_config(page_title="Free AI Voiceover & Auto-Caption", layout="centered")
-st.title("🎬 AI Voiceover & Caption (Multi-Position Mode)")
-st.write("Ubah teks menjadi suara Google dan letakkan posisi caption sesuai seleramu!")
+st.title("🎬 AI Voiceover & Word-by-Word Caption")
+st.write("Ubah teks menjadi suara Google dengan caption otomatis yang muncul per kata!")
 
 # Komponen Upload Video & Teks
 uploaded_video = st.file_uploader("Pilih file video (MP4/MOV)", type=["mp4", "mov", "avi"])
-text_input = st.text_area("Masukkan teks narasi (akan dijadikan suara & caption):", placeholder="Halo, selamat datang di video ini...")
+text_input = st.text_area("Masukkan teks narasi:", placeholder="Halo, selamat datang di video ini...")
 
 # Pilihan Bahasa Suara
 language = st.selectbox(
@@ -29,18 +29,19 @@ language = st.selectbox(
     format_func=lambda x: x[0]
 )
 
-# --- FITUR BARU: PILIHAN POSISI CAPTION ---
+# Pilihan Posisi Caption
 caption_position = st.radio(
     "Pilih Posisi Letak Caption:",
     [("Bawah", "bottom"), ("Tengah", "center"), ("Atas", "top")],
     format_func=lambda x: x[0],
-    horizontal=True # Membuat pilihan berjejer ke samping agar rapi
+    horizontal=True
 )
 
 # Fungsi Khusus Pengganti ImageMagick (Render Teks dengan Pillow)
 def create_caption_clip(text, duration, video_width):
-    box_width = int(video_width * 0.9)
-    box_height = 100 # Tinggi kotak subtitle
+    # Agar pas untuk satu kata, ukuran kotak disesuaikan secara proporsional
+    box_width = int(video_width * 0.8)
+    box_height = 90 # Sedikit lebih ramping karena hanya menampilkan satu kata
     
     # Buat kanvas hitam solid
     img = Image.new('RGB', (box_width, box_height), color=(0, 0, 0))
@@ -52,7 +53,7 @@ def create_caption_clip(text, duration, video_width):
         urllib.request.urlretrieve("https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Bold.ttf", font_path)
     
     try:
-        font = ImageFont.truetype(font_path, 40)
+        font = ImageFont.truetype(font_path, 42) # Ukuran font sedikit diperbesar agar jelas
     except:
         font = ImageFont.load_default()
         
@@ -78,7 +79,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
     if uploaded_video is None or text_input.strip() == "":
         st.warning("⚠️ Mohon unggah file video dan isi teks narasinya terlebih dahulu!")
     else:
-        with st.spinner("Sedang merender suara, menggambar caption, dan menggabungkannya..."):
+        with st.spinner("Sedang memproses suara AI dan menyinkronkan caption per kata..."):
             try:
                 # Simpan video mentah
                 temp_video_path = "temp_input_video.mp4"
@@ -100,27 +101,26 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 h_safe = h if h % 2 == 0 else h - 1
                 video_clip = video_clip.resize((w_safe, h_safe))
                 
-                # Memecah teks
+                # --- LOGIKA BARU: PROSES CAPTION PER KATA ---
                 words = text_input.split()
                 time_per_word = audio_clip.duration / max(len(words), 1)
                 
-                chunk_size = 5
                 subtitle_clips = []
                 
-                for i in range(0, len(words), chunk_size):
-                    chunk_text = " ".join(words[i:i+chunk_size])
-                    chunk_duration = time_per_word * len(words[i:i+chunk_size])
-                    
-                    # Gunakan fungsi render teks custom buatan kita
-                    txt_clip = create_caption_clip(chunk_text, chunk_duration, w_safe)
-                    subtitle_clips.append(txt_clip)
+                # Looping langsung per kata (tanpa digabung menjadi kalimat panjang)
+                for word in words:
+                    # Bersihkan spasi kosong jika ada
+                    word = word.strip()
+                    if word:
+                        txt_clip = create_caption_clip(word, time_per_word, w_safe)
+                        subtitle_clips.append(txt_clip)
+                # --------------------------------------------
                 
-                # Gabungkan caption berurutan
-                # --- PERUBAHAN DI SINI: Mengikuti posisi pilihan user secari dinamis ---
-                pilihan_posisi = caption_position[1] # berisi 'bottom', 'center', atau 'top'
+                # Gabungkan seluruh potongan kata secara berurutan
+                pilihan_posisi = caption_position[1]
                 final_subtitle_clip = concatenate_videoclips(subtitle_clips).set_position(('center', pilihan_posisi))
                 
-                # Tumpuk video asli dengan teks subtitle
+                # Tumpuk video asli dengan teks subtitle per kata
                 composite_video = CompositeVideoClip([video_clip, final_subtitle_clip])
                 
                 # Pasang audio ke video gabungan
@@ -143,7 +143,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                 composite_video.close()
                 
                 # Tampilkan Hasil
-                st.success(f"🎉 Video berhasil diproses dengan posisi caption di bagian {caption_position[0]}!")
+                st.success("🎉 Video dengan gaya caption per kata berhasil dibuat!")
                 st.video(output_video_path)
                 
                 # Download File
@@ -151,7 +151,7 @@ if st.button("⚡ Proses Video & Caption Sekarang"):
                     st.download_button(
                         label="📥 Download Video Hasil",
                         data=file,
-                        file_name="video_final.mp4",
+                        file_name="video_per_kata.mp4",
                         mime="video/mp4"
                     )
                 
